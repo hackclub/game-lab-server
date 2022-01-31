@@ -1,58 +1,36 @@
 const express = require('express')
-const router = express.Router()
 const fetch = require('node-fetch')
 const shell = require('shelljs')
+const { createWriteStream } = require('fs')
+const { pipeline } = require('stream')
+const { promisify } = require('util')
 const app = express()
 
-async function getCommitFromVersion(versionString) {
-  if (versionString.length === 40) {
-    // this is probably a git SHA1 commit
-    return versionString
-  } else {
-    // let's assume this is a release tag if not
-    const url = `https://api.github.com/repos/hackclub/game-lab/git/refs/tags/${versionString}`
-    const release = await fetch(url).then(r => r.json())
-    const sha = release.object.sha
-    return sha
+async function ensureTag(tag) {
+  const tagDownloaded = shell.test('-e', `./clones/${tag}.zip`)
+  if (!tagDownloaded) {
+    const url = `https://github.com/hackclub/game-lab/archive/refs/tags/${tag}.zip`
+    const streamPipeline = promisify(pipeline)
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`unexpected response ${response.statusText}`)
+    }
+    await streamPipeline(response.body, createWriteStream(`./clones/${tag}.zip`))
+  }
+  const unzipped = shell.test('-d', `./clones/${tag}/`)
+  if (!unzipped) {
+    shell.exec(`unzip ./clones/${tag}.zip -d ./clones/${tag}`).code
+    shell.mv(`./clones/${tag}/game-lab-${tag}/*`, `./clones/${tag}/`).code
   }
 }
 
-function ensureRootCloned() {
-  const alreadyCloned = shell.ls("./clones/root").code === 0
-  if (alreadyCloned) {
-    shell.exec("git --git-dir ./clones/root fetch").code
-  } else {
-    shell.exec("git clone https://github.com/hackclub/game-lab ./clones/root --bare").code
-  }
-}
-
-async function ensureShaCloned(sha) {
-  const alreadyCloned = shell.ls(`./clones/${sha}`).code === 0
-  if (alreadyCloned) { return true }
-
-  ensureRootCloned()
-  shell.exec(`git clone ./clones/root ./clones/${sha}`).code
-  console.log(`git --git-dir ./clones/${sha}/.git reset --hard ${sha}`)
-  shell.exec(`git --git-dir ./clones/${sha}/.git checkout ${sha}`).code
-  // shell.rm(`./clones/${sha}/.git`)
-}
-
-async function getFileFromSha(sha, path) {
-  await ensureShaCloned(sha)
-  return `./clones/${sha}/${path}`
-}
-
-// /asldjkklasjdlkajdslaskjdl/assets/run.png
-// /0.1.0/assets/run.png
-app.get('/:version/*', async (req, res) => {
-  console.log({params: req.params})
-  
-  const versionString = req.params.version
-  console.log(versionString, versionString.length)
+app.get('/:tag/*', async (req, res) => {
+  const tag = req.params.tag
   const path = req.params[0]
-  const commit = await getCommitFromVersion(versionString)
-  const file = await getFileFromSha(commit, path)
-  res.sendFile(__dirname+'/'+file)
+
+  await ensureTag(tag)
+
+  res.sendFile(__dirname+'/clones/'+tag+'/'+path)
 })
 
 app.listen(3000)
