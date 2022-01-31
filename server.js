@@ -31,9 +31,10 @@ async function ensureShaCloned(sha) {
   if (alreadyCloned) { return true }
 
   ensureRootCloned()
-  shell.exec(`git clone ./clones/root ./clones/${sha}`)
-  shell.exec(`git --git-dir ./clones/${sha} reset --hard ${sha}`)
-  shell.rm(`./clones/${sha}/.git`)
+  shell.exec(`git clone ./clones/root ./clones/${sha}`).code
+  console.log(`git --git-dir ./clones/${sha}/.git reset --hard ${sha}`)
+  shell.exec(`git --git-dir ./clones/${sha}/.git checkout ${sha}`).code
+  // shell.rm(`./clones/${sha}/.git`)
 }
 
 async function getFileFromSha(sha, path) {
@@ -47,21 +48,11 @@ app.get('/:version/*', async (req, res) => {
   console.log({params: req.params})
   
   const versionString = req.params.version
+  console.log(versionString, versionString.length)
   const path = req.params[0]
-  // const { tag, path } = req.params
   const commit = await getCommitFromVersion(versionString)
   const file = await getFileFromSha(commit, path)
   res.sendFile(__dirname+'/'+file)
-  // res.json({tag, path, file})
 })
-// router.use(async (req, res)=> {
-//   console.log(req.params)
-//   // const commit = await getCommitFromTag(tag)
-//   // ensureShaCloned(commit)
-// })
-// router.get('/*', (req, res) => {
-//   res.send("hello world")
-// })
-// app.use('/', router)
 
 app.listen(3000)
