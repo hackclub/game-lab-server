@@ -6,10 +6,11 @@
   "author": "Max Wofford <max@maxwofford.com>",
   "license": "MIT",
   "scripts": {
-    "dev": "npx nodemon server.js"
+    "dev": "npx nodemon --ignore ./clones/ server.js"
   },
   "dependencies": {
     "express": "^4.17.2",
+    "node-fetch": "2",
     "shelljs": "^0.8.5"
   }
 }
